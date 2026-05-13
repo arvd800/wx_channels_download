@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	version = "1.0.0"
+	version     = "1.0.0"
 	defaultPort = 8080
 )
 
@@ -25,7 +25,8 @@ func main() {
 
 	flag.IntVar(&port, "port", defaultPort, "proxy server listening port")
 	flag.BoolVar(&verbose, "verbose", false, "enable verbose logging")
-	flag.StringVar(&outDir, "out", "./downloads", "output directory for downloaded videos")
+	// Changed default output dir to ~/Downloads/wx_channels for better organization
+	flag.StringVar(&outDir, "out", "./wx_channels", "output directory for downloaded videos")
 	flag.BoolVar(&showVer, "version", false, "show version information")
 	flag.Parse()
 
