@@ -5,7 +5,9 @@ package proxy
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -71,6 +73,7 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		Director: func(req *http.Request) {
 			req.URL = target
 			req.Host = target.Host
+			// preserve the original remote address for upstream logging
 			req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 		},
 		Transport: &http.Transport{
@@ -107,6 +110,12 @@ func (p *Proxy) handleTunnel(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(clientConn, dest)
 }
 
+// isWxChannelsMedia reports whether the given URL looks like a WeChat Channels media URL.
+func isWxChannelsMedia(u *url.URL) bool {
+	return strings.Contains(u.Host, "finder.video.qq.com") ||
+		strings.Contains(u.Host, "channels.weixin.qq.com")
+}
+
 // captureMedia extracts and stores media information from a WeChat Channels request.
 func (p *Proxy) captureMedia(r *http.Request) {
 	info := &MediaInfo{
@@ -118,25 +127,18 @@ func (p *Proxy) captureMedia(r *http.Request) {
 			info.Headers[k] = v[0]
 		}
 	}
+
 	q := r.URL.Query()
 	info.FileKey = q.Get("filekey")
 	info.DecryKey = q.Get("decrykey")
+
+	log.Printf("[proxy] captured media: %s (filekey=%s)", info.URL, info.FileKey)
 
 	p.mu.Lock()
 	p.mediaMap[info.FileKey] = info
 	p.mu.Unlock()
 
-	log.Printf("[proxy] captured media: filekey=%s", info.FileKey)
 	if p.onMedia != nil {
 		p.onMedia(info)
 	}
-}
-
-// isWxChannelsMedia reports whether the URL belongs to a WeChat Channels media endpoint.
-func isWxChannelsMedia(u *url.URL) bool {
-	host := u.Hostname()
-	path := u.Path
-	return (strings.Contains(host, "finder.video.qq.com") ||
-		strings.Contains(host, "channels.weixin.qq.com")) &&
-		(strings.Contains(path, "/finder/") || strings.Contains(path, "/download/"))
 }
